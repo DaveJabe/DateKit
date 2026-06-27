@@ -100,7 +100,7 @@ A calendar breakdown of an interval — the `years` / `months` / `days` componen
 `totalDays`, the absolute whole-day count.
 
 ```swift
-public struct ElapsedTimeBreakdown: Equatable, Hashable {
+public struct ElapsedTimeBreakdown: Equatable, Hashable, Sendable {
     public let years: Int
     public let months: Int
     public let days: Int
@@ -137,7 +137,7 @@ let days = ElapsedTimeBreakdown
 A display-oriented breakdown and its individual units.
 
 ```swift
-public struct TimeSinceComponents: Equatable {
+public struct TimeSinceComponents: Equatable, Sendable {
     public let years, months, days, hours, minutes, seconds: Int
     public init(years: Int, months: Int, days: Int, hours: Int = 0, minutes: Int = 0, seconds: Int = 0)
 
@@ -146,7 +146,7 @@ public struct TimeSinceComponents: Equatable {
     public var nonZeroUnits: [TimeUnit]
 }
 
-public struct TimeUnit: Identifiable, Equatable {
+public struct TimeUnit: Identifiable, Equatable, Sendable {
     public enum Kind: String, Sendable { case years, months, days, hours, minutes, seconds }
     public let kind: Kind
     public let value: Int
@@ -206,7 +206,7 @@ matches the question you're asking.
 ### `AppDateStyle`
 
 ```swift
-public enum AppDateStyle: String, CaseIterable, Identifiable { case short, medium, long }
+public enum AppDateStyle: String, CaseIterable, Identifiable, Sendable { case short, medium, long }
 ```
 
 Maps to `Date.FormatStyle.DateStyle` `.numeric` / `.abbreviated` / `.complete`.

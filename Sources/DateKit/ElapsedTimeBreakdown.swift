@@ -17,7 +17,7 @@ import Foundation
 /// `compute(from:to:calendar:)` is the single source of truth. It is symmetric
 /// (a start later than the end is swapped, never producing negative numerals)
 /// and clamps every component at zero.
-public struct ElapsedTimeBreakdown: Equatable, Hashable {
+public struct ElapsedTimeBreakdown: Equatable, Hashable, Sendable {
     public let years: Int
     public let months: Int
     public let days: Int

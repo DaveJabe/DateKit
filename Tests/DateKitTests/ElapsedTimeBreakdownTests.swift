@@ -170,4 +170,16 @@ final class ElapsedTimeBreakdownTests: XCTestCase {
         XCTAssertFalse(zone.isDaylightSavingTime(for: Date()))
         XCTAssertEqual(ElapsedTimeBreakdown.utcCalendar.identifier, .gregorian)
     }
+
+    // MARK: Hashable contract (DK-9)
+
+    func testHashableUsableInSet() {
+        let value = ElapsedTimeBreakdown(years: 1, months: 2, days: 3, totalDays: 400)
+        let equal = ElapsedTimeBreakdown(years: 1, months: 2, days: 3, totalDays: 400)
+        let different = ElapsedTimeBreakdown(years: 0, months: 0, days: 0, totalDays: 0)
+        let set: Set<ElapsedTimeBreakdown> = [value, equal, different]
+        XCTAssertEqual(set.count, 2) // value == equal collapse to one entry
+        XCTAssertTrue(set.contains(value))
+        XCTAssertTrue(set.contains(different))
+    }
 }

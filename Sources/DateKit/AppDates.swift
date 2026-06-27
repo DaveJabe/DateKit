@@ -20,7 +20,7 @@ import Foundation
 // MARK: - Display Types
 
 /// Presets for user-facing date-only formatting.
-public enum AppDateStyle: String, CaseIterable, Identifiable {
+public enum AppDateStyle: String, CaseIterable, Identifiable, Sendable {
     case short, medium, long
     public var id: String { rawValue }
 }
@@ -47,6 +47,13 @@ public enum AppDates {
     /// midnight). Timezone-aware day boundaries are the calendar's responsibility;
     /// this is the plain calendar-day helper for cases that don't need a fixed
     /// reference frame.
+    ///
+    /// - Important: This is the one elapsed helper that is **signed** — reversed
+    ///   arguments (`endDate` earlier than `startDate`) yield a negative count.
+    ///   Every other helper here (``timeSinceComponents(from:to:calendar:)``,
+    ///   ``clockComponents(from:)``, ``compactElapsed(from:to:)``, and
+    ///   ``ElapsedTimeBreakdown/compute(from:to:calendar:)``) is unordered and
+    ///   clamps at zero. Use this only when you actually want direction.
     public static func daysBetween(
         _ startDate: Date,
         _ endDate: Date,
@@ -60,13 +67,20 @@ public enum AppDates {
     /// Calendar-style Y/M/D difference, anchored to calendar midnight. When still
     /// within day 0 (no whole years/months/days) the result carries sub-day
     /// granularity (hours/minutes/seconds) instead.
+    ///
+    /// The interval is treated as unordered — `min` to `max` — so reversed input
+    /// yields the same magnitude as forward input (mirroring
+    /// ``ElapsedTimeBreakdown/compute(from:to:calendar:)``), never negative numerals.
     public static func timeSinceComponents(
         from startDate: Date,
         to endDate: Date,
         calendar: Calendar = AppDates.calendar
     ) -> TimeSinceComponents {
-        let start = calendar.startOfDay(for: startDate)
-        let end = calendar.startOfDay(for: endDate)
+        // Guard against reversed input — never render negative numerals.
+        let lo = min(startDate, endDate)
+        let hi = max(startDate, endDate)
+        let start = calendar.startOfDay(for: lo)
+        let end = calendar.startOfDay(for: hi)
         let comps = calendar.dateComponents([.year, .month, .day], from: start, to: end)
         let years = max(0, comps.year ?? 0)
         let months = max(0, comps.month ?? 0)
@@ -74,7 +88,7 @@ public enum AppDates {
 
         if years == 0 && months == 0 && days == 0 {
             // Provide sub-day granularity when still within day 0.
-            let hms = calendar.dateComponents([.hour, .minute, .second], from: startDate, to: endDate)
+            let hms = calendar.dateComponents([.hour, .minute, .second], from: lo, to: hi)
             let hours = max(0, hms.hour ?? 0)
             let minutes = max(0, hms.minute ?? 0)
             let seconds = max(0, hms.second ?? 0)
@@ -88,9 +102,16 @@ public enum AppDates {
 
     /// Returns `true` when the date falls exactly on midnight in the given
     /// calendar's time zone. Used to decide whether to show the time component.
+    ///
+    /// Sub-second precision counts: a date at `00:00:00.5` is **not** midnight, so a
+    /// fractional-second time component is never silently dropped by callers that
+    /// branch on this.
     public static func isMidnight(_ date: Date, calendar: Calendar = AppDates.calendar) -> Bool {
-        let comps = calendar.dateComponents([.hour, .minute, .second], from: date)
-        return (comps.hour ?? 0) == 0 && (comps.minute ?? 0) == 0 && (comps.second ?? 0) == 0
+        let comps = calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: date)
+        return (comps.hour ?? 0) == 0
+            && (comps.minute ?? 0) == 0
+            && (comps.second ?? 0) == 0
+            && (comps.nanosecond ?? 0) == 0
     }
 
     /// Date + time string when the time is non-midnight, date-only string otherwise.
@@ -152,8 +173,11 @@ public enum AppDates {
     /// The whole hours / minutes / seconds of an elapsed interval, clamped at 0.
     /// The single source for a "live clock" split (e.g. a day-0 counter) so every
     /// surface rolls over identically.
+    ///
+    /// Non-finite input (`.infinity` / `.nan`) is treated as zero rather than
+    /// trapping in `Int(_:)`.
     public static func clockComponents(from interval: TimeInterval) -> (hours: Int, minutes: Int, seconds: Int) {
-        let totalSeconds = Int(max(0, interval))
+        let totalSeconds = interval.isFinite ? Int(max(0, interval)) : 0
         return (totalSeconds / 3600, (totalSeconds % 3600) / 60, totalSeconds % 60)
     }
 

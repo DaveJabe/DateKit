@@ -11,7 +11,7 @@
 import Foundation
 
 /// Calendar-style breakdown of elapsed time.
-public struct TimeSinceComponents: Equatable {
+public struct TimeSinceComponents: Equatable, Sendable {
     public let years: Int
     public let months: Int
     public let days: Int
@@ -55,7 +55,7 @@ public struct TimeSinceComponents: Equatable {
 /// The localized *word* for a unit (e.g. "day" / "days") depends on a string
 /// catalog and is therefore a domain concern; the consuming module is expected to
 /// add it via an extension (e.g. `extension TimeUnit { var word: String { … } }`).
-public struct TimeUnit: Identifiable, Equatable {
+public struct TimeUnit: Identifiable, Equatable, Sendable {
     public enum Kind: String, Sendable {
         case years, months, days
         case hours, minutes, seconds
