@@ -173,10 +173,10 @@ public enum AppDates {
     /// The user's autoupdating locale + time zone calendar.
     public static let calendar: Calendar
 
-    /// Whole calendar-day difference (both dates floored to calendar midnight). Signed.
+    /// Whole calendar-day difference (each date anchored to its calendar day). Signed.
     public static func daysBetween(_ start: Date, _ end: Date, calendar: Calendar = AppDates.calendar) -> Int
 
-    /// Y/M/D difference anchored to midnight, with sub-day H/M/S granularity on day 0.
+    /// Y/M/D difference anchored to whole calendar days, with sub-day H/M/S granularity on day 0.
     public static func timeSinceComponents(from: Date, to: Date, calendar: Calendar = AppDates.calendar) -> TimeSinceComponents
 
     /// True when the date is exactly midnight in the calendar's time zone.
@@ -198,7 +198,7 @@ public enum AppDates {
 }
 ```
 
-`daysBetween` answers a *calendar-day* question (floored to midnight, so two instants
+`daysBetween` answers a *calendar-day* question (day-anchored, so two instants
 90 minutes apart that straddle midnight are "1 day"), whereas
 `ElapsedTimeBreakdown.compute` counts *whole 24-hour periods*. Pick the one that
 matches the question you're asking.
@@ -231,9 +231,11 @@ swift test
 ```
 
 The suite is deterministic: every date is constructed in a fixed calendar (UTC, or an
-explicit `America/New_York` calendar for DST cases), and `compactElapsed` is asserted
-via locale-independent properties. It covers `compute` over known intervals (including
-leap years, the UTC whole-24h boundary, and spring-forward / fall-back day counts),
+explicit DST-observing calendar — `America/New_York` for 02:00 transitions, plus
+`America/Santiago` / `America/Havana` / `Atlantic/Azores` for days with no local
+midnight), and `compactElapsed` is asserted via locale-independent properties. It
+covers `compute` over known intervals (including leap years, leap-day and end-of-month
+clamping, the UTC whole-24h boundary, and spring-forward / fall-back day counts),
 `daysBetween`, `timeSinceComponents`, `clockComponents`, `isMidnight`, `compactElapsed`,
 and the `TimeSinceComponents` / `TimeUnit` display logic.
 

@@ -97,6 +97,51 @@ final class ElapsedTimeBreakdownTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(breakdown.totalDays, 730)
     }
 
+    // MARK: Leap-day starts (anniversary clamping)
+
+    func testLeapDayStartToFeb28NextYearIsExactlyOneYear() {
+        // Foundation clamps the missing Feb 29 anniversary: 2024-02-29 → 2025-02-28
+        // reports exactly one year (not 0y 11m 30d), and 2025 is not a leap year so
+        // the span is 365 whole days.
+        let breakdown = ElapsedTimeBreakdown.compute(
+            from: utc(2024, 2, 29), to: utc(2025, 2, 28), calendar: utcCalendar
+        )
+        XCTAssertEqual(breakdown, ElapsedTimeBreakdown(years: 1, months: 0, days: 0, totalDays: 365))
+    }
+
+    func testLeapDayStartToMarch1NextYearIsOneYearOneDay() {
+        // One day past the clamped anniversary: 1 year 0 months 1 day, 366 days.
+        let breakdown = ElapsedTimeBreakdown.compute(
+            from: utc(2024, 2, 29), to: utc(2025, 3, 1), calendar: utcCalendar
+        )
+        XCTAssertEqual(breakdown, ElapsedTimeBreakdown(years: 1, months: 0, days: 1, totalDays: 366))
+    }
+
+    // MARK: End-of-month clamping
+
+    func testJan31ToFeb28IsOneMonthZeroDays() {
+        // Foundation clamps "one month after Jan 31" to Feb 28, so the pair reports
+        // a whole month with no remainder days — this drives user-visible copy.
+        let breakdown = ElapsedTimeBreakdown.compute(
+            from: utc(2025, 1, 31), to: utc(2025, 2, 28), calendar: utcCalendar
+        )
+        XCTAssertEqual(breakdown, ElapsedTimeBreakdown(years: 0, months: 1, days: 0, totalDays: 28))
+    }
+
+    func testJan31ToMarch1IsOneMonthOneDay() {
+        let breakdown = ElapsedTimeBreakdown.compute(
+            from: utc(2025, 1, 31), to: utc(2025, 3, 1), calendar: utcCalendar
+        )
+        XCTAssertEqual(breakdown, ElapsedTimeBreakdown(years: 0, months: 1, days: 1, totalDays: 29))
+    }
+
+    func testJan31ToMarch31IsTwoMonthsZeroDays() {
+        let breakdown = ElapsedTimeBreakdown.compute(
+            from: utc(2025, 1, 31), to: utc(2025, 3, 31), calendar: utcCalendar
+        )
+        XCTAssertEqual(breakdown, ElapsedTimeBreakdown(years: 0, months: 2, days: 0, totalDays: 59))
+    }
+
     // MARK: Symmetry / future starts
 
     func testFutureStartIsSwappedNotNegative() {

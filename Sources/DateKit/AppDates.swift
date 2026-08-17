@@ -5,7 +5,7 @@
 //  Centralized, agnostic date math + formatting.
 //
 //  Goals:
-//  - One place to define "calendar rules" (start-of-day anchoring, DST-safe day
+//  - One place to define "calendar rules" (whole-day anchoring, DST-safe day
 //    boundaries).
 //  - Thread-safe formatting using `FormatStyle` (no `DateFormatter`).
 //  - Pure functions (easy to test; callers can pass an injected `now`).
@@ -43,8 +43,23 @@ public enum AppDates {
 
     // MARK: Time Since
 
-    /// Whole calendar-day difference between two dates (both floored to calendar
-    /// midnight). Timezone-aware day boundaries are the calendar's responsibility;
+    /// The wall-clock noon of `date`'s calendar day — the anchor used for whole-day
+    /// differencing.
+    ///
+    /// Noon is used instead of `startOfDay` because midnight does not exist on every
+    /// day: some zones spring forward *at* 00:00 (America/Santiago, America/Havana,
+    /// Atlantic/Azores), so the transition day starts at 01:00 and midnight-floored
+    /// differencing under-counts every span touching that day by one. Real-world DST
+    /// transitions never skip noon, and every calendar day is 23–25 hours long, so
+    /// noon-to-noon component math counts calendar days exactly.
+    private static func noon(of date: Date, calendar: Calendar) -> Date {
+        var components = calendar.dateComponents([.era, .year, .month, .day], from: date)
+        components.hour = 12
+        return calendar.date(from: components) ?? calendar.startOfDay(for: date)
+    }
+
+    /// Whole calendar-day difference between two dates (each anchored to its own
+    /// calendar day). Timezone-aware day boundaries are the calendar's responsibility;
     /// this is the plain calendar-day helper for cases that don't need a fixed
     /// reference frame.
     ///
@@ -59,12 +74,12 @@ public enum AppDates {
         _ endDate: Date,
         calendar: Calendar = AppDates.calendar
     ) -> Int {
-        let shiftedStart = calendar.startOfDay(for: startDate)
-        let shiftedEnd   = calendar.startOfDay(for: endDate)
+        let shiftedStart = noon(of: startDate, calendar: calendar)
+        let shiftedEnd   = noon(of: endDate, calendar: calendar)
         return calendar.dateComponents([.day], from: shiftedStart, to: shiftedEnd).day ?? 0
     }
 
-    /// Calendar-style Y/M/D difference, anchored to calendar midnight. When still
+    /// Calendar-style Y/M/D difference, anchored to whole calendar days. When still
     /// within day 0 (no whole years/months/days) the result carries sub-day
     /// granularity (hours/minutes/seconds) instead.
     ///
@@ -79,8 +94,8 @@ public enum AppDates {
         // Guard against reversed input — never render negative numerals.
         let lo = min(startDate, endDate)
         let hi = max(startDate, endDate)
-        let start = calendar.startOfDay(for: lo)
-        let end = calendar.startOfDay(for: hi)
+        let start = noon(of: lo, calendar: calendar)
+        let end = noon(of: hi, calendar: calendar)
         let comps = calendar.dateComponents([.year, .month, .day], from: start, to: end)
         let years = max(0, comps.year ?? 0)
         let months = max(0, comps.month ?? 0)
@@ -174,10 +189,15 @@ public enum AppDates {
     /// The single source for a "live clock" split (e.g. a day-0 counter) so every
     /// surface rolls over identically.
     ///
-    /// Non-finite input (`.infinity` / `.nan`) is treated as zero rather than
-    /// trapping in `Int(_:)`.
+    /// Non-finite input (`.infinity` / `.nan`) is treated as zero, and finite input
+    /// beyond `Int.max` seconds is clamped to `Int.max`, rather than trapping in
+    /// `Int(_:)`.
     public static func clockComponents(from interval: TimeInterval) -> (hours: Int, minutes: Int, seconds: Int) {
-        let totalSeconds = interval.isFinite ? Int(max(0, interval)) : 0
+        guard interval.isFinite else { return (0, 0, 0) }
+        let clamped = max(0, interval)
+        // `TimeInterval(Int.max)` rounds up to 2^63, so anything below it converts
+        // to `Int` without trapping; everything at or above clamps to `Int.max`.
+        let totalSeconds = clamped < TimeInterval(Int.max) ? Int(clamped) : Int.max
         return (totalSeconds / 3600, (totalSeconds % 3600) / 60, totalSeconds % 60)
     }
 
