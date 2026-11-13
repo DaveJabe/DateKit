@@ -17,6 +17,12 @@ let package = Package(
         .library(
             name: "DateKit",
             targets: ["DateKit"]
+        ),
+        // The SwiftUI calendar built on DateKit's day math. A separate library so DateKit itself stays
+        // Foundation-only for targets that draw no UI.
+        .library(
+            name: "DateKitUI",
+            targets: ["DateKitUI"]
         )
     ],
     targets: [
@@ -27,6 +33,11 @@ let package = Package(
                 // tools-version downgrade) rather than relying on the tools-version 6.0 default.
                 .swiftLanguageMode(.v6)
             ]
+        ),
+        .target(
+            name: "DateKitUI",
+            dependencies: ["DateKit"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "DateKitTests",

@@ -27,6 +27,9 @@ let breakdown = ElapsedTimeBreakdown.compute(
   - [`TimeSinceComponents` & `TimeUnit`](#timesincecomponents--timeunit)
   - [`AppDates`](#appdates)
   - [`AppDateStyle`](#appdatestyle)
+  - [`CalendarMonth` & `CalendarMonthGrid`](#calendarmonth--calendarmonthgrid)
+  - [`CalendarDayPicking`](#calendardaypicking)
+- [DateKitUI: `CalendarPicker`](#datekitui-calendarpicker)
 - [Key behaviors](#key-behaviors)
 - [Testing](#testing)
 - [License](#license)
@@ -53,7 +56,8 @@ functions so every surface computes the same answer.
 - Pure, deterministic, injectable date math (you pass the `Calendar` and the `now`).
 - Thread-safe formatting via `FormatStyle` / `DateComponentsFormatter` (no shared
   `DateFormatter`).
-- Zero external dependencies — Foundation only.
+- Zero external dependencies — Foundation only. The optional `DateKitUI` library adds a
+  SwiftUI calendar on top; `DateKit` itself never imports SwiftUI.
 
 **This package is _not_:**
 
@@ -81,7 +85,7 @@ concurrency). The floor is driven by `Date.FormatStyle`, which needs iOS 16 / ma
 Swift Package Manager:
 
 ```swift
-.package(url: "https://github.com/DaveJabe/DateKit.git", from: "1.0.0")
+.package(url: "https://github.com/DaveJabe/DateKit.git", from: "1.3.0")
 ```
 
 …or a local path during development:
@@ -90,7 +94,8 @@ Swift Package Manager:
 .package(path: "../DateKit")
 ```
 
-Then add `"DateKit"` to your target's `dependencies`.
+Then add `"DateKit"` to your target's `dependencies`, and `"DateKitUI"` for the calendar
+view.
 
 ## Public API
 
@@ -211,6 +216,64 @@ public enum AppDateStyle: String, CaseIterable, Identifiable, Sendable { case sh
 
 Maps to `Date.FormatStyle.DateStyle` `.numeric` / `.abbreviated` / `.complete`.
 
+### `CalendarMonth` & `CalendarMonthGrid`
+
+```swift
+let month = CalendarMonth(year: 2027, month: 5)
+let grid = CalendarMonthGrid(month: month, firstWeekday: Calendar.current.firstWeekday)
+grid.weeks                                          // 6 rows of 7 CalendarDays
+month.displayName(locale: .current, calendar: .current) // "May 2027"
+```
+
+- **Counted, not stepped.** The grid and the day arithmetic under it (`CalendarDay.adding(days:)`,
+  `.weekday`, `.isValid`) are integer math on `CalendarDay`. No `Calendar`, time zone or instant
+  is involved, so a zone whose day starts at 01:00, or one that skipped a date, can't misdraw a
+  month.
+- **Always six weeks**, starting on `firstWeekday`, so every month draws the same height.
+- **Names follow the user.** Month and year names use the user's calendar system when it divides
+  the year like the Gregorian calendar (Buddhist, Japanese, Republic of China, ISO 8601), so a
+  picker agrees with the other dates on screen. Any other system falls back to Gregorian names,
+  since it would name a month the grid isn't showing.
+
+### `CalendarDayPicking`
+
+```swift
+let picking = CalendarDayPicking(timeZone: .current, maximum: oneYearFromNow)
+picking.canPick(day)                                   // inside the bounds, and a real day here
+picking.instant(picking: day, keepingTimeOf: selection) // the Date to write, or nil
+```
+
+The one place a `CalendarDay` grid meets the `Date` it edits:
+
+- Days are read in the Gregorian calendar of the given zone.
+- A pick keeps the edited date's time of day, so a separate time control on the same `Date` is
+  left alone.
+- A pick only lands if it reads back as the picked day. A day the zone skipped (Samoa's
+  30 December 2011) can't be picked; a time of day the zone skipped resolves later on the same day.
+- A bound allows its whole day, and a pick on that day is clamped to the bound.
+- Picks stay within `supportedYears` (1583...9999): Foundation's Gregorian calendar counts Julian
+  days before 1583.
+
+## DateKitUI: `CalendarPicker`
+
+```swift
+import DateKitUI
+
+CalendarPicker(
+    selection: $date,
+    maximumDate: latestAllowed,
+    appearance: CalendarPickerAppearance(accent: .mint),
+    labels: CalendarPickerLabels(previousMonth: Text("Previous month"), /* … */)
+)
+```
+
+A month calendar for picking a day, built on `CalendarMonthGrid` and `CalendarDayPicking`. Its title
+opens the twelve months, and their title opens a page of years, so a date years back is a few clicks
+away. `CalendarPickerAppearance` sets its colors and fonts. `CalendarPickerLabels` takes VoiceOver
+labels as `Text` built in your app, so they come from your string catalog; the defaults are plain
+English, since DateKit carries no strings table. Month and weekday names come from the environment's
+locale, and the first weekday from the environment's calendar.
+
 ## Key behaviors
 
 - **No negative numerals.** `compute` and the `AppDates` component helpers swap a
@@ -238,6 +301,11 @@ covers `compute` over known intervals (including leap years, leap-day and end-of
 clamping, the UTC whole-24h boundary, and spring-forward / fall-back day counts),
 `daysBetween`, `timeSinceComponents`, `clockComponents`, `isMidnight`, `compactElapsed`,
 and the `TimeSinceComponents` / `TimeUnit` display logic.
+
+The calendar suites go by exhaustion. They check the integer day math against Foundation for every
+day from 1583 to 2600, every month grid in that span with each of the seven first weekdays, and a pick
+of every day from 1970 to 2040 in 19 zones. Those include the zones whose days start at 01:00 and the
+five that skipped a day crossing the date line (Apia, Fakaofo, Kiritimati, Kanton, Kwajalein).
 
 ## License
 
